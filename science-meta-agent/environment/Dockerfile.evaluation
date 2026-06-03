@@ -1,0 +1,76 @@
+FROM python:3.11-slim
+
+# Install system dependencies
+RUN apt-get update && apt-get install -y \
+    curl \
+    && rm -rf /var/lib/apt/lists/*
+
+# Install uv for fast dependency installation
+RUN curl -LsSf https://astral.sh/uv/install.sh | sh
+ENV PATH="/root/.local/bin:$PATH"
+
+# Install Python packages for evaluation service
+RUN pip install --no-cache-dir \
+    flask>=2.0.0 \
+    pebble>=5.0.0 \
+    requests \
+    numpy \
+    scipy \
+    sympy \
+    regex \
+    latex2sympy2 \
+    word2number \
+    openai>=1.0.0 \
+    cryptography
+
+# Set working directory
+WORKDIR /app
+
+# Create directories
+RUN mkdir -p /app/data /app/tools /app/eval_utils /workspace/data
+
+# Copy all data files (ground truth + eval/test problems)
+COPY data/ /app/data/
+
+# Copy agent-facing tools (base_agent, openai_helper, agent_runner)
+COPY tools/ /app/tools/
+
+# Copy evaluation utilities (grader, parser, monitor, etc.)
+COPY eval_utils/ /app/eval_utils/
+
+# NOTE: solution/ is NOT copied here. Harbor's OracleAgent uploads it
+# at runtime to /solution/ in the main container. The evaluation-api
+# container accesses oracle agent via shared /workspace/ volume.
+# This prevents meta-agent code (running in evaluation-api container)
+# from accessing /app/solution/oracle_agent.py and extracting secrets.
+
+# Encrypt test data files at build time (ground truth + test questions)
+ARG VERIFIER_SECRET=
+RUN printf '%s\n' \
+    'import hashlib, base64, os, sys' \
+    'from cryptography.fernet import Fernet' \
+    'secret = sys.argv[1]' \
+    'assert secret, "VERIFIER_SECRET build arg is required"' \
+    'key = base64.urlsafe_b64encode(hashlib.sha256(secret.encode()).digest())' \
+    'f = Fernet(key)' \
+    'for name in sys.argv[2:]:' \
+    '    path = f"/app/data/{name}"' \
+    '    assert os.path.exists(path), f"{path} not found"' \
+    '    data = open(path, "rb").read()' \
+    '    open(path + ".enc", "wb").write(f.encrypt(data))' \
+    '    os.remove(path)' \
+    '    print(f"Encrypted {path} -> {path}.enc")' \
+    > /tmp/_encrypt.py && \
+    python3 /tmp/_encrypt.py "${VERIFIER_SECRET}" gpqa_full.jsonl gpqa_test.jsonl && \
+    rm /tmp/_encrypt.py
+
+# Ensure agent code can import from /app/tools (base_agent, openai_helper)
+ENV PYTHONPATH=/app/tools:$PYTHONPATH
+
+# Health check endpoint will be available at /health
+HEALTHCHECK --interval=10s --timeout=5s --retries=3 \
+    CMD curl -f http://localhost:8080/health || exit 1
+
+RUN mkdir -p /evaluation_logs
+
+CMD ["sh", "-c", "python3 /app/eval_utils/evaluation_api.py --host 0.0.0.0 --port 8080 2>&1 | tee /evaluation_logs/evaluation_api.log"]

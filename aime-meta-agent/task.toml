@@ -1,0 +1,44 @@
+# AIME Meta-Agent Optimization Task
+# Task where an agent builds workflows/prompts to optimize AIME math benchmark performance
+
+name = "local/aime-meta-agent"
+version = "1.0.0"
+description = "Meta-agent task: Build and optimize agent workflows/prompts for AIME math problems"
+
+[agent]
+# 12 hours for the agent to optimize
+timeout_sec = 43200.0
+
+[solution.env]
+SOLUTION_MODE = "${SOLUTION_MODE}"
+
+[verifier]
+# Extended verifier timeout for scoring
+timeout_sec = 46800.0
+
+[verifier.env]
+# Configure the model API endpoint and model name via environment variables
+TASK_MODEL_API_BASE = "${TASK_MODEL_API_BASE}"
+TASK_MODEL_API_KEY = "${TASK_MODEL_API_KEY}"
+TASK_MODEL_NAME = "${TASK_MODEL_NAME}"
+
+[environment]
+cpus = 4
+memory_mb = 16384  # 16 GB
+storage_mb = 10240  # 10 GB
+allow_internet = true
+
+[metadata]
+benchmark = "aime"
+task_type = "meta-optimization"
+difficulty = "hard"
+category = "math-reasoning"
+
+[metadata.tags]
+tags = ["math", "meta-learning", "agent-optimization", "aime", "reasoning"]
+
+[evaluation]
+# Output format specification
+output_file = "/workspace/predictions.jsonl"
+# Scorer will compute accuracy against ground truth
+metrics = ["accuracy", "avg_score"]

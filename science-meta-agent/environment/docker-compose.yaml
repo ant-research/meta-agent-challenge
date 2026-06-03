@@ -1,0 +1,81 @@
+services:
+  # Evaluation API service (runs in container, has access to ground truth)
+  evaluation-api:
+    build:
+      context: ${CONTEXT_DIR}/..
+      dockerfile: environment/Dockerfile.evaluation
+      args:
+        - VERIFIER_SECRET=${VERIFIER_SECRET:-science-verifier-secret-do-not-share}
+    image: ${MAIN_IMAGE_NAME}-evaluation
+    # No need to expose port to host - only accessible via internal Docker network
+    # This avoids port conflicts when running multiple trials
+    expose:
+      - "8080"
+    environment:
+      # Task model API config: used by the Flask LLM proxy (/v1/chat/completions).
+      # These are NOT forwarded to agent subprocess env — see evaluation_api.py agent_env.
+      - TASK_MODEL_API_BASE=${TASK_MODEL_API_BASE:-http://host.docker.internal:8000/v1}
+      - TASK_MODEL_NAME=${TASK_MODEL_NAME:-default}
+      - TASK_MODEL_API_KEY=${TASK_MODEL_API_KEY:-dummy-key}
+      # Search API config: used by the Flask search proxy (/search/query).
+      # These are NOT forwarded to agent subprocess env.
+      - SEARCH_API_KEY=${SEARCH_API_KEY:-}
+      - SEARCH_API_BASE=${SEARCH_API_BASE:-}
+    volumes:
+      # Share workspace directory with main container for agent file access (read-only)
+      # Use bind mount to persist files across container restarts (survives docker-compose down --volumes)
+      - ${HOST_AGENT_LOGS_PATH}/workspace:/workspace:ro
+      # Writable mount for evaluation logs (agent stdout/stderr persisted to host)
+      - ${HOST_AGENT_LOGS_PATH}/evaluation_logs:/evaluation_logs
+    networks:
+      - science-network
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8080/health"]
+      interval: 10s
+      timeout: 5s
+      retries: 3
+
+  # Main agent container (no access to ground truth)
+  main:
+    build:
+      # Build context is the task root directory (parent of environment/)
+      context: ${CONTEXT_DIR}/..
+      # Dockerfile is in the environment/ subdirectory
+      dockerfile: environment/Dockerfile
+    image: ${MAIN_IMAGE_NAME}
+    command: [ "sh", "-c", "if [ -n \"$MODEL_README\" ] && [ -f \"/model_readmes/$MODEL_README\" ]; then cp \"/model_readmes/$MODEL_README\" /workspace/model_readme.md; fi; sleep infinity" ]
+    environment:
+      - TEST_DIR=${TEST_DIR}
+      # Connect to evaluation API service
+      - EVALUATION_API_URL=http://evaluation-api:8080
+      # Model API: routed through evaluation-api's built-in proxy
+      - TASK_MODEL_API_BASE=http://evaluation-api:8080/v1
+      - TASK_MODEL_API_KEY=proxy-token
+      - TASK_MODEL_NAME=${TASK_MODEL_NAME:-default}
+      # Model README filename (optional)
+      - MODEL_README=${MODEL_README:-}
+    volumes:
+      - ${HOST_VERIFIER_LOGS_PATH}:${ENV_VERIFIER_LOGS_PATH}
+      - ${HOST_AGENT_LOGS_PATH}:${ENV_AGENT_LOGS_PATH}
+      # Share workspace directory with evaluation-api for agent file access
+      # Use bind mount to persist files across container restarts (survives docker-compose down --volumes)
+      - ${HOST_AGENT_LOGS_PATH}/workspace:/workspace
+      # Mount model READMEs directory (read-only, optional)
+      - ${MODEL_READMES_DIR:-/tmp}:/model_readmes:ro
+      # Mount helper files as read-only — kernel-enforced, even root cannot modify
+      - ${CONTEXT_DIR}/../tools/openai_helper.py:/app/tools/openai_helper.py:ro
+      - ${CONTEXT_DIR}/../tools/search_helper.py:/app/tools/search_helper.py:ro
+    networks:
+      - science-network
+    depends_on:
+      evaluation-api:
+        condition: service_healthy
+    deploy:
+      resources:
+        limits:
+          cpus: ${CPUS}
+          memory: ${MEMORY}
+
+networks:
+  science-network:
+    driver: bridge

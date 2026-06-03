@@ -1,0 +1,55 @@
+[task]
+name = "local/science-meta-agent"
+description = "Meta-agent task: Build and optimize agent workflows for GPQA/HLE science questions"
+version = "1.0.0"
+
+[agent]
+# Agent has 12 hours to build and optimize their workflow
+timeout_sec = 43200.0  # 12 hours
+
+[solution.env]
+SOLUTION_MODE = "${SOLUTION_MODE}"
+
+[verifier]
+# Verifier has 13 hours
+timeout_sec = 46800.0  # 13 hours
+
+[verifier.env]
+# LLM API configuration (passed to harbor system)
+TASK_MODEL_API_BASE = "${TASK_MODEL_API_BASE}"
+TASK_MODEL_API_KEY = "${TASK_MODEL_API_KEY}"
+TASK_MODEL_NAME = "${TASK_MODEL_NAME}"
+
+# Search API configuration
+SEARCH_API_KEY = "${SEARCH_API_KEY}"
+SEARCH_API_BASE = "${SEARCH_API_BASE}"
+
+[environment]
+# Resource limits
+cpus = 2
+memory_mb = 16384
+storage_mb = 10240
+
+# Network access required for search API
+allow_internet = true
+
+[metadata]
+# Task metadata
+benchmark = "gpqa_hle"
+task_type = "meta-optimization"
+difficulty = "hard"
+category = "science-reasoning"
+
+[metadata.tags]
+tags = ["science", "meta-learning", "agent-optimization", "gpqa", "hle", "multiple-choice", "search"]
+
+[evaluation]
+# Output file location
+output_file = "/workspace/predictions.jsonl"
+
+# Evaluation metrics
+metrics = ["accuracy", "avg_score"]
+
+# Scoring
+max_score = 1.0
+min_score = 0.0

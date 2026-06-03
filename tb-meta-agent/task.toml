@@ -1,0 +1,75 @@
+# Terminal Bench Meta-Agent Optimization Task
+# Task where an agent builds workflows/prompts to optimize Terminal Bench performance.
+#
+# Evaluation proxy runs in a separate container (evaluation-api) to isolate
+# the verifier secret from the agent.  The proxy forwards to a Harbor service
+# endpoint (see instruction.md).
+
+name = "tb-meta-agent"
+version = "0.1.0"
+description = "Meta-agent task: Build and optimize an agent.py to solve Terminal Bench; evaluation is delegated to a Harbor endpoint"
+
+[agent]
+# 24 hours for the meta-agent to optimize
+timeout_sec = 86400.0
+
+[verifier]
+# Verifier runs the remote Harbor evaluation; give it headroom beyond 24h.
+timeout_sec = 90000.0
+
+[verifier.env]
+# NOTE: Do NOT pass EVALUATION_API_URL here.  docker-compose sets the correct
+# Docker-internal value (http://evaluation-api:8080) on the main container.
+# Passing it through verifier.env would override that with the host-side
+# localhost URL, which is unreachable from inside the container.
+
+# External Harbor CLI service endpoint (the proxy forwards by calling /v1/cli/exec).
+HARBOR_CLI_SERVICE_URL = "${HARBOR_CLI_SERVICE_URL:-}"
+HARBOR_CLI_SERVICE_API_KEY = "${HARBOR_CLI_SERVICE_API_KEY:-}"
+
+# Harbor dataset names.
+HARBOR_DEV_DATASET_NAME = "${HARBOR_DEV_DATASET_NAME:-}"
+HARBOR_TEST_DATASET_NAME = "${HARBOR_TEST_DATASET_NAME:-}"
+
+# Harbor run configuration.
+HARBOR_AGENT_IMPORT_PATH = "${HARBOR_AGENT_IMPORT_PATH:-}"
+HARBOR_JOBS_DIR = "${HARBOR_JOBS_DIR:-}"
+HARBOR_CLI_CWD = "${HARBOR_CLI_CWD:-}"
+HARBOR_N_ATTEMPTS = "${HARBOR_N_ATTEMPTS:-}"
+HARBOR_N_CONCURRENT = "${HARBOR_N_CONCURRENT:-}"
+HARBOR_AGENT_SETUP_TIMEOUT_MULTIPLIER = "${HARBOR_AGENT_SETUP_TIMEOUT_MULTIPLIER:-}"
+HARBOR_N_RESUMES = "${HARBOR_N_RESUMES:-}"
+
+# Built-in agent type for inner harbor run (e.g. claude-code, openhands).
+HARBOR_AGENT = "${HARBOR_AGENT:-}"
+
+# Solution mode (baseline, baseline_openhands, baseline_claude_code).
+SOLUTION_MODE = "${SOLUTION_MODE:-}"
+
+# Model API config forwarded to the external Harbor subprocess.
+TASK_MODEL_API_BASE = "${TASK_MODEL_API_BASE:-}"
+TASK_MODEL_API_KEY = "${TASK_MODEL_API_KEY:-}"
+TASK_MODEL_NAME = "${TASK_MODEL_NAME:-}"
+
+# Anthropic config for built-in agents (claude-code, etc.).
+ANTHROPIC_API_KEY = "${ANTHROPIC_API_KEY:-}"
+ANTHROPIC_BASE_URL = "${ANTHROPIC_BASE_URL:-}"
+ANTHROPIC_API_BASE = "${ANTHROPIC_API_BASE:-}"
+
+[environment]
+cpus = 4
+memory_mb = 16384
+storage_mb = 10240
+allow_internet = true
+
+[metadata]
+benchmark = "terminal-bench"
+task_type = "meta-optimization"
+difficulty = "hard"
+category = "terminal-operations"
+
+[metadata.tags]
+tags = ["terminal-bench", "meta-learning", "agent-optimization", "terminal"]
+
+[evaluation]
+metrics = ["resolved_rate"]

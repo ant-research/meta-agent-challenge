@@ -1,0 +1,78 @@
+FROM python:3.11-slim
+
+RUN apt-get update && apt-get install -y \
+    curl \
+    && rm -rf /var/lib/apt/lists/*
+
+RUN curl -LsSf https://astral.sh/uv/install.sh | sh
+ENV PATH="/root/.local/bin:$PATH"
+
+RUN pip install --no-cache-dir \
+    flask>=2.0.0 \
+    numpy \
+    openai>=1.0.0 \
+    cryptography \
+    requests
+
+WORKDIR /app
+
+RUN mkdir -p /app/data /app/tools /app/eval_utils /workspace/data /evaluation_logs
+
+COPY data/ /app/data/
+COPY tools/ /app/tools/
+COPY eval_utils/ /app/eval_utils/
+
+# NOTE: solution/ is NOT copied here. Harbor's OracleAgent uploads it
+# at runtime to /solution/ in the main container. The evaluation-api
+# container accesses oracle agent via shared /workspace/ volume.
+# This prevents meta-agent code (running in evaluation-api container)
+# from accessing /app/solution/oracle_agent.py and extracting secrets.
+
+# Enforce pre-prepared datasets at build time.
+RUN test -f /app/data/lcb_eval.jsonl || (echo "Missing required file: /app/data/lcb_eval.jsonl" && exit 1) && \
+    test -f /app/data/lcb_eval_full.jsonl || (echo "Missing required file: /app/data/lcb_eval_full.jsonl" && exit 1) && \
+    test -f /app/data/lcb_test.jsonl || (echo "Missing required file: /app/data/lcb_test.jsonl" && exit 1) && \
+    test -f /app/data/lcb_test_full.jsonl || (echo "Missing required file: /app/data/lcb_test_full.jsonl" && exit 1)
+
+# Encrypt test data files at build time and remove plaintext test files.
+# Use chunked Fernet records to avoid loading giant files fully into memory.
+ARG VERIFIER_SECRET=
+RUN if [ -z "${VERIFIER_SECRET}" ]; then \
+      echo "ERROR: VERIFIER_SECRET build arg is required"; \
+      exit 1; \
+    fi && \
+    printf '%s\n' \
+    'import base64, hashlib, os, struct, sys' \
+    'from cryptography.fernet import Fernet' \
+    'MAGIC = b"LCBFERNETv1\n"' \
+    'CHUNK_SIZE = 4 * 1024 * 1024' \
+    'secret = sys.argv[1]' \
+    'files = sys.argv[2:]' \
+    'key = base64.urlsafe_b64encode(hashlib.sha256(secret.encode()).digest())' \
+    'f = Fernet(key)' \
+    'for path in files:' \
+    '    if not os.path.exists(path):' \
+    '        raise FileNotFoundError(path)' \
+    '    out_path = path + ".enc"' \
+    '    with open(path, "rb") as src, open(out_path, "wb") as dst:' \
+    '        dst.write(MAGIC)' \
+    '        while True:' \
+    '            chunk = src.read(CHUNK_SIZE)' \
+    '            if not chunk:' \
+    '                break' \
+    '            token = f.encrypt(chunk)' \
+    '            dst.write(struct.pack(">I", len(token)))' \
+    '            dst.write(token)' \
+    '    os.remove(path)' \
+    '    print(f"Encrypted {path} -> {out_path}")' \
+    > /tmp/_encrypt.py && \
+    python3 /tmp/_encrypt.py "${VERIFIER_SECRET}" /app/data/lcb_test_full.jsonl /app/data/lcb_test.jsonl && \
+    rm /tmp/_encrypt.py
+
+ENV PYTHONPATH=/app/tools:$PYTHONPATH
+
+HEALTHCHECK --interval=10s --timeout=5s --retries=3 \
+    CMD curl -f http://localhost:8080/health || exit 1
+
+ENV PYTHONUNBUFFERED=1
+CMD ["sh", "-c", "python3 /app/eval_utils/evaluation_api.py --host 0.0.0.0 --port 8080 2>&1 | tee /evaluation_logs/evaluation_api.log"]

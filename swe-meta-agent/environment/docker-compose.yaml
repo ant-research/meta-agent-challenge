@@ -1,0 +1,83 @@
+services:
+  # Single container: agent runs here.
+  main:
+    build:
+      context: ${CONTEXT_DIR}/..
+      dockerfile: environment/Dockerfile
+    image: ${MAIN_IMAGE_NAME}
+    command: [ "sh", "-c", "sleep infinity" ]
+    environment:
+      # Evaluation API runs in a separate container
+      - EVALUATION_API_URL=http://evaluation-api:8080
+      # Harbor run options
+      # Default `agent:SWEAgent` refers to `agent.py` (module `agent`) and class SWEAgent in Harbor CLI cwd.
+      - HARBOR_AGENT_IMPORT_PATH=${HARBOR_AGENT_IMPORT_PATH:-agent:SWEAgent}
+      - HARBOR_JOBS_DIR=${HARBOR_JOBS_DIR:-${HOST_AGENT_LOGS_PATH}/workspace/evaluation_logs}
+      # This is a host filesystem path, used by the external cli_service process.
+      # Default: the host directory that is bind-mounted into the container at /workspace.
+      - HARBOR_CLI_CWD=${HOST_AGENT_LOGS_PATH}/workspace
+      - HARBOR_N_ATTEMPTS=${HARBOR_N_ATTEMPTS:-1}
+      - HARBOR_N_CONCURRENT=${HARBOR_N_CONCURRENT:-1}
+      # Task model: meta-agent sees proxy endpoint only (real creds stay in evaluation-api)
+      - TASK_MODEL_API_BASE=http://evaluation-api:8080/anthropic
+      - TASK_MODEL_NAME=${TASK_MODEL_NAME:-default}
+      - TASK_MODEL_API_KEY=proxy-token
+      # Built-in agent type for inner harbor run (e.g. claude-code, openhands).
+      # When set, uses --agent instead of --agent-import-path.
+      - HARBOR_AGENT=${HARBOR_AGENT:-}
+      # Solution mode (baseline, baseline_openhands, baseline_claude_code)
+      - SOLUTION_MODE=${SOLUTION_MODE:-}
+    volumes:
+      - ${HOST_VERIFIER_LOGS_PATH}:${ENV_VERIFIER_LOGS_PATH}
+      - ${HOST_AGENT_LOGS_PATH}:${ENV_AGENT_LOGS_PATH}
+      - ${HOST_AGENT_LOGS_PATH}/workspace:/workspace
+    healthcheck:
+      test: ["CMD", "true"]
+      interval: 10s
+      timeout: 5s
+      retries: 3
+    deploy:
+      resources:
+        limits:
+          cpus: ${CPUS}
+          memory: ${MEMORY}
+
+  # Separate container: evaluation proxy with VERIFIER_SECRET.
+  # Agent cannot access this container's environment.
+  evaluation-api:
+    build:
+      context: ${CONTEXT_DIR}/..
+      dockerfile: environment/Dockerfile.evaluation
+    image: ${MAIN_IMAGE_NAME}-evaluation-api
+    ports:
+      - "${EVALUATION_API_HOST_PORT:-8080}:8080"
+    environment:
+      - VERIFIER_SECRET=${VERIFIER_SECRET:-swe-verifier-secret-do-not-share}
+      - HARBOR_CLI_SERVICE_URL=${HARBOR_CLI_SERVICE_URL:-}
+      - HARBOR_CLI_SERVICE_API_KEY=${HARBOR_CLI_SERVICE_API_KEY:-}
+      - HOST_IP=${HOST_IP:-127.0.0.1}
+      - EVALUATION_API_HOST_PORT=${EVALUATION_API_HOST_PORT:-8080}
+      - HARBOR_DEV_DATASET_NAME=${HARBOR_DEV_DATASET_NAME:-}
+      - HARBOR_TEST_DATASET_NAME=${HARBOR_TEST_DATASET_NAME:-}
+      - HARBOR_AGENT_IMPORT_PATH=${HARBOR_AGENT_IMPORT_PATH:-agent:SWEAgent}
+      - HARBOR_JOBS_DIR=${HARBOR_JOBS_DIR:-${HOST_AGENT_LOGS_PATH}/workspace/evaluation_logs}
+      - HARBOR_CLI_CWD=${HOST_AGENT_LOGS_PATH}/workspace
+      - HARBOR_N_ATTEMPTS=${HARBOR_N_ATTEMPTS:-1}
+      - HARBOR_N_CONCURRENT=${HARBOR_N_CONCURRENT:-1}
+      - HARBOR_AGENT_SETUP_TIMEOUT_MULTIPLIER=${HARBOR_AGENT_SETUP_TIMEOUT_MULTIPLIER:-}
+      - HARBOR_N_RESUMES=${HARBOR_N_RESUMES:-}
+      - HARBOR_AGENT=${HARBOR_AGENT:-}
+      - TASK_MODEL_API_BASE=${TASK_MODEL_API_BASE:-}
+      - TASK_MODEL_NAME=${TASK_MODEL_NAME:-default}
+      - TASK_MODEL_API_KEY=${TASK_MODEL_API_KEY:-}
+      - ANTHROPIC_API_KEY=${ANTHROPIC_API_KEY:-}
+      - ANTHROPIC_BASE_URL=${ANTHROPIC_BASE_URL:-}
+      - ANTHROPIC_API_BASE=${ANTHROPIC_API_BASE:-}
+    volumes:
+      - ${HOST_AGENT_LOGS_PATH}/workspace:/workspace
+      - ${HOST_AGENT_LOGS_PATH}/evaluation_logs:/evaluation_logs
+    healthcheck:
+      test: ["CMD", "curl", "-sf", "http://localhost:8080/health"]
+      interval: 10s
+      timeout: 5s
+      retries: 3

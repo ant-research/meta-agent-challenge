@@ -1,0 +1,19 @@
+FROM python:3.11-slim
+
+WORKDIR /app
+
+RUN apt-get update && apt-get install -y \
+    curl \
+    && rm -rf /var/lib/apt/lists/*
+
+RUN pip install --no-cache-dir \
+    flask>=2.0.0 \
+    requests>=2.31.0
+
+COPY eval_utils/ /app/eval_utils/
+
+EXPOSE 8080
+
+RUN mkdir -p /evaluation_logs
+
+CMD ["sh", "-c", "python /app/eval_utils/evaluation_api.py --host 0.0.0.0 --port 8080 2>&1 | tee /evaluation_logs/evaluation_api.log"]

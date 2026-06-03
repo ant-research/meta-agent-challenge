@@ -1,0 +1,59 @@
+services:
+  evaluation-api:
+    build:
+      context: ${CONTEXT_DIR}/..
+      dockerfile: environment/Dockerfile.evaluation
+      args:
+        - VERIFIER_SECRET=${VERIFIER_SECRET:-lcb-verifier-secret-do-not-share}
+    image: ${MAIN_IMAGE_NAME}-evaluation
+    expose:
+      - "8080"
+    environment:
+      - TASK_MODEL_API_BASE=${TASK_MODEL_API_BASE:-http://host.docker.internal:8000/v1}
+      - TASK_MODEL_NAME=${TASK_MODEL_NAME:-default}
+      - TASK_MODEL_API_KEY=${TASK_MODEL_API_KEY:-dummy-key}
+    volumes:
+      - ${HOST_AGENT_LOGS_PATH}/workspace:/workspace:ro
+      - ${HOST_AGENT_LOGS_PATH}/evaluation_logs:/evaluation_logs
+    networks:
+      - lcb-network
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8080/health"]
+      interval: 10s
+      timeout: 5s
+      retries: 3
+
+  main:
+    build:
+      context: ${CONTEXT_DIR}/..
+      dockerfile: environment/Dockerfile
+    image: ${MAIN_IMAGE_NAME}
+    command: ["sh", "-c", "if [ -n \"$MODEL_README\" ] && [ -f \"/model_readmes/$MODEL_README\" ]; then cp \"/model_readmes/$MODEL_README\" /workspace/model_readme.md; fi; sleep infinity"]
+    environment:
+      - TEST_DIR=${TEST_DIR}
+      - EVALUATION_API_URL=http://evaluation-api:8080
+      - MODEL_README=${MODEL_README:-}
+      # OpenAI config for main container points to evaluation-api proxy.
+      # Real upstream credentials are held only in evaluation-api.
+      - TASK_MODEL_API_BASE=http://evaluation-api:8080/v1
+      - TASK_MODEL_NAME=${TASK_MODEL_NAME:-default}
+      - TASK_MODEL_API_KEY=proxy-token
+    volumes:
+      - ${HOST_VERIFIER_LOGS_PATH}:${ENV_VERIFIER_LOGS_PATH}
+      - ${HOST_AGENT_LOGS_PATH}:${ENV_AGENT_LOGS_PATH}
+      - ${HOST_AGENT_LOGS_PATH}/workspace:/workspace
+      - ${MODEL_READMES_DIR:-/tmp}:/model_readmes:ro
+    networks:
+      - lcb-network
+    depends_on:
+      evaluation-api:
+        condition: service_healthy
+    deploy:
+      resources:
+        limits:
+          cpus: ${CPUS}
+          memory: ${MEMORY}
+
+networks:
+  lcb-network:
+    driver: bridge

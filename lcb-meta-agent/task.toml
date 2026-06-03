@@ -1,0 +1,44 @@
+# LiveCodeBench Meta-Agent Optimization Task
+# Task where an agent optimizes coding workflows/prompts on LiveCodeBench code_generation_lite.
+
+name = "lcb-meta-agent"
+version = "1.0.0"
+description = "Meta-agent task: optimize code-generation workflows for LiveCodeBench"
+
+[agent]
+timeout_sec = 43200.0
+
+[solution.env]
+SOLUTION_MODE = "${SOLUTION_MODE}"
+
+[verifier]
+timeout_sec = 46800.0
+
+[verifier.env]
+TASK_MODEL_API_BASE = "${TASK_MODEL_API_BASE}"
+TASK_MODEL_API_KEY = "${TASK_MODEL_API_KEY}"
+TASK_MODEL_NAME = "${TASK_MODEL_NAME}"
+
+[environment]
+build_timeout_sec = 1800.0
+cpus = 4
+memory_mb = 16384
+storage_mb = 12288
+allow_internet = true
+
+[restrictions]
+allowed_domains = []
+block_external_apis = true
+
+[metadata]
+benchmark = "livecodebench"
+task_type = "meta-optimization"
+difficulty = "hard"
+category = "code-generation"
+
+[metadata.tags]
+tags = ["livecodebench", "competitive-programming", "code-generation", "meta-learning"]
+
+[evaluation]
+output_file = "/workspace/predictions.jsonl"
+metrics = ["accuracy"]

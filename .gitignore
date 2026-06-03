@@ -1,0 +1,43 @@
+# Python
+__pycache__/
+*.pyc
+*.bak
+
+# Local / IDE
+.claude/
+*.tar.gz
+
+# Data files
+lcb-meta-agent/data/**
+!lcb-meta-agent/data/.gitkeep
+
+# Experiment outputs
+outputs/
+logs/
+jobs/
+run_to_inspect/
+res.txt
+
+# Experiment run directories
+meta-agent/
+meta-agent-*/
+meta-swe-agent*/
+meta-tb-agent/
+meta-tb-agent-*/
+science-agent-gemini*/
+science-meta-agent-codex*/
+science-meta-agent-gpt-*/
+science-meta-agent-rich-dev-feedback/
+tb-2-0-*/
+tb-meta-agent-openai/
+test-*/
+lcb-meta-agent_new/
+config/
+
+# Deleted task variants (may still exist on disk)
+aime-meta-agent-redteam/
+aime-meta-agent-rich-dev-feedback/
+
+table2run.md
+meta-agent-challenge.tar.gz
+meta-agent-challenge.zip
