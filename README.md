@@ -1,11 +1,11 @@
 # The Meta-Agent Challenge
 
 [![Website](https://img.shields.io/badge/Website-meta--agent--challenge.com-blue)](https://meta-agent-challenge.com)
-[![Paper](https://img.shields.io/badge/Paper-PDF-b31b1b)]()
+[![Paper](https://img.shields.io/badge/Paper-PDF-b31b1b)](https://arxiv.org/abs/2606.04455)
 [![License](https://img.shields.io/badge/License-Apache_2.0-blue)](LICENSE)
 [![GitHub](https://img.shields.io/github/stars/ant-research/meta-agent-challenge?style=social)](https://github.com/ant-research/meta-agent-challenge)
 
-The first benchmark that asks code agents to build agents — then measures how good those agents are. See the [leaderboard](https://meta-agent-challenge.com) on our website and the [paper]() for more details.
+The first benchmark that asks code agents to build agents — then measures how good those agents are. See the [leaderboard](https://meta-agent-challenge.com) on our website and the [paper](https://arxiv.org/abs/2606.04455) for more details.
 
 ## What is the Meta-Agent Challenge?
 
@@ -61,12 +61,14 @@ Open an issue first for anything non-trivial. PRs should keep the existing direc
 ## Citation
 
 ```bibtex
-@misc{lu2026mac,
-  title  = {The Meta-Agent Challenge: Are Current Agents Capable of Autonomous Agent Development?},
-  author = {Xinyu Lu and Tianshu Wang and Pengbo Wang and Zujie Wen and
-            Zhiqiang Zhang and Jun Zhou and Boxi Cao and Yaojie Lu and
-            Hongyu Lin and Xianpei Han and Le Sun},
-  year   = {2026}
+@misc{lu2026metaagentchallengecurrentagents,
+      title={The Meta-Agent Challenge: Are Current Agents Capable of Autonomous Agent Development?}, 
+      author={Xinyu Lu and Tianshu Wang and Pengbo Wang and zujie wen and Zhiqiang Zhang and Jun Zhou and Boxi Cao and Yaojie Lu and Hongyu Lin and Xianpei Han and Le Sun},
+      year={2026},
+      eprint={2606.04455},
+      archivePrefix={arXiv},
+      primaryClass={cs.AI},
+      url={https://arxiv.org/abs/2606.04455}, 
 }
 ```
 
